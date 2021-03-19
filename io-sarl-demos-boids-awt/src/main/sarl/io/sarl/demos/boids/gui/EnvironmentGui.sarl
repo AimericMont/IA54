@@ -1,0 +1,228 @@
+/* 
+ * $Id$
+ * 
+ * SARL is an general-purpose agent programming language.
+ * More details on http://www.sarl.io
+ * 
+ * Copyright (C) 2014-2020 the original authors or authors.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.sarl.demos.boids.gui
+
+import io.sarl.demos.boids.Die
+import io.sarl.demos.boids.PerceivedBoidBody
+import io.sarl.core.OpenEventSpace
+import java.awt.Color
+import java.awt.Frame
+import java.awt.Graphics
+import java.awt.Image
+import java.awt.Panel
+import java.awt.^event.WindowAdapter
+import java.awt.^event.WindowEvent
+import java.util.Map
+import java.util.UUID
+import org.arakhne.afc.math.geometry.d2.d.Vector2d
+
+import static extension java.lang.Math.*
+import java.util.Date
+import io.sarl.demos.boids.BoidsSimulationLauncher
+import java.awt.image.BufferedImage
+import java.io.File
+import javax.imageio.ImageIO
+
+/** 
+ * Graphical user interface for boids.
+ * 
+ * @author Nicolas Gaud
+ */
+class EnvironmentGui extends Frame {
+
+	var handler : Closer
+
+	var panel : EnvironmentGuiPanel
+	
+
+	new (comspace : OpenEventSpace, iheight : int, iwidth : int, iboids : Map<UUID, PerceivedBoidBody>) {
+		super()
+		handler = new Closer(this, comspace)
+		panel = new EnvironmentGuiPanel(iheight, iwidth, iboids)
+
+		this.title = "Boids Simulation"
+		this.setSize(iwidth + 200, iheight + 200)
+		addWindowListener(handler)
+
+		add("Center", panel)
+		this.visible = true
+	}
+
+	def setBoids(boids : Map<UUID, PerceivedBoidBody>) {
+		this.panel.boids = boids
+	}
+
+	override paint(g : Graphics) {
+		super.paint(g)
+		this.panel.paint(g)
+	}
+
+}
+
+package class Closer extends WindowAdapter {
+	var ^space : OpenEventSpace
+	var iframe : Frame
+
+	new(parent : Frame, comspace : OpenEventSpace) {
+		^space = comspace
+		iframe = parent
+	}
+
+	/** 
+	 * Clean the simulation asking the agents to die before disposing the window
+	 */
+	override windowClosing(^event : WindowEvent) {
+		^space.emit(UUID.randomUUID, new Die)
+		iframe.dispose();
+	}
+
+}
+
+/** 
+ * The GUI of the Simulation
+ * 
+ * @author Nicolas GAUD
+ */
+package class EnvironmentGuiPanel extends Panel {
+
+		/** 
+		 * Double buffering management.
+		 */
+	var myGraphics : Graphics
+
+	/** 
+	 * Double buffering management.
+	 */
+	var myCanvas : Graphics
+
+	/** 
+	 * Double buffering management.
+	 */
+	var myImage : Image
+
+	var width : int
+
+	var height : int
+
+	var boids : Map<UUID, PerceivedBoidBody>
+
+	def setBoids(boids : Map<UUID, PerceivedBoidBody>) {
+		this.boids = boids
+	}
+
+	new (iheight : int, iwidth : int, iboids : Map<UUID, PerceivedBoidBody>) {
+		super()
+		width = iwidth
+		height = iheight
+		boids = iboids
+	}
+
+	override paint(g : Graphics) {
+		if ((myCanvas !== null) && (myGraphics !== null)) {
+			val bgColor = new Color(0.2F, 0.2F, 0.2F)
+			myCanvas.color = bgColor
+			myCanvas.fillRect(0, 0, width * 2 - 1, height * 2 - 1)
+			myCanvas.setColor(Color::BLACK)
+			myCanvas.drawRect(0, 0, width * 2 - 1, height * 2 - 1)
+
+			// val image : BufferedImage = ImageIO.read(new File("img//backgroundimage.png"))
+			val image : BufferedImage = ImageIO.read(getClass().getClassLoader().getResource("backgroundimage.png"))
+			myCanvas.drawImage(image, width - 400 + 2, height - 300 + 2, null)
+
+			for (boid : boids.values) {
+				paintBoid(myCanvas, boid)
+			}
+			paintSeat(myCanvas)
+
+			myCanvas.setColor(Color::BLACK)
+			myCanvas.drawRect(width - 400 + 1, height - 300 + 1, 800 + 2, 600 + 2)
+			myCanvas.setColor(Color::ORANGE) // guichet
+			myCanvas.fillOval(width + 250, height - 180, 4, 4)
+			myCanvas.fillOval(width + 250, height - 60, 4, 4)
+			myCanvas.fillOval(width + 250, height + 60, 4, 4)
+			myCanvas.fillOval(width + 250, height + 180, 4, 4)
+			myCanvas.setColor(Color::PINK)
+			myCanvas.fillOval(width, height, 4, 4)
+			myCanvas.fillOval(width, height + 138, 4, 4)
+
+			myGraphics.drawImage(myImage, 0, 0, this)
+
+		}
+	}
+
+	def update(g : Graphics) {
+		g.paint
+	}
+
+	override doLayout {
+		super.doLayout
+
+		width = (this.size.width / 2)
+		height = this.size.height / 2
+
+		myImage = createImage(width * 2, height * 2)
+		myCanvas = myImage.graphics
+		myGraphics = this.graphics
+
+	}
+
+	def paintBoid(g : Graphics, boid : PerceivedBoidBody) {
+		var posX = width + boid.position.x as int
+		var posY = height + boid.position.y as int
+
+		g.color = boid.group.color
+		g.fillOval(posX, posY, BoidsSimulationLauncher::BOIDSIZE, BoidsSimulationLauncher::BOIDSIZE)
+
+		if (BoidsSimulationLauncher::startTime) {
+			BoidsSimulationLauncher::currentTime = (new Date().getTime() - BoidsSimulationLauncher::initTime.getTime())
+		}
+		g.setFont(g.getFont().deriveFont(18.0f))
+		g.setColor(Color::WHITE)
+		g.drawString((BoidsSimulationLauncher::currentTime / 1000).toString(), width, height - 325)
+
+	}
+
+	def paintSeat(g : Graphics) {
+		g.setColor = Color::RED
+
+		for (var i = 0; i < BoidsSimulationLauncher::NB_Y_SEAT; i++) {
+			for (var j = 0; j < BoidsSimulationLauncher::NB_X_SEAT; j++) {
+				g.fillOval(width - 250 + j * BoidsSimulationLauncher::DIST_BETWEEN_SEAT,
+					(height * 2 -
+						(BoidsSimulationLauncher::DIST_BETWEEN_SEAT * BoidsSimulationLauncher::NB_Y_SEAT - 1)) / 2 +
+						i * BoidsSimulationLauncher::DIST_BETWEEN_SEAT + BoidsSimulationLauncher::DIST_BETWEEN_SEAT / 2,
+					2, 2)
+			}
+		}
+	}
+
+	private static def getAngle(v : Vector2d) : double {
+		var zero = 1E-9
+		if ((v.x * v.x) < zero) {
+			if(v.y >= 0) return (PI / 2)
+			return (-1 * PI / 2)
+		}
+		if(v.x >= 0) return (v.y / v.x).atan
+		if(v.y >= 0) return ( PI + (v.y / v.x).atan )
+		return ( (v.y / v.x).atan - PI )
+	}
+
+}

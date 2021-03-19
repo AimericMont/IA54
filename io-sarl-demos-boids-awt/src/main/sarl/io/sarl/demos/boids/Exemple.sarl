@@ -1,0 +1,205 @@
+/** 
+ * 
+ */
+package io.sarl.demos.boids
+
+import org.knowm.xchart.XYChart
+import org.knowm.xchart.SwingWrapper
+import org.knowm.xchart.QuickChart
+import java.util.ArrayList
+import org.knowm.xchart.XYChartBuilder
+import org.knowm.xchart.XYSeries
+import org.knowm.xchart.style.markers.SeriesMarkers
+import org.knowm.xchart.CategoryChart
+import org.knowm.xchart.CategoryChartBuilder
+import org.knowm.xchart.style.Styler.LegendPosition
+import org.knowm.xchart.CategorySeries.CategorySeriesRenderStyle
+import org.knowm.xchart.XChartPanel
+import java.io.IOException
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+import javax.swing.JButton;
+import java.awt.^event.ActionListener
+import java.awt.FlowLayout
+import java.awt.^event.ActionEvent
+import java.awt.Dimension
+import java.awt.Toolkit
+
+/** 
+ * @author benjamin
+ * 
+ */
+class Exemple extends JFrame implements ActionListener {
+
+	var bouton1 : JButton
+	var bouton2 : JButton
+	var bouton3 : JButton
+
+	static def main(args : String*) : void {
+		var e : Exemple = new Exemple
+		var jFrame : JFrame = new JFrame()
+		var jPanel : JPanel = e.buildContentPane()
+		//jFrame.pack()
+
+		//récuperer la taille de l'écran
+		var tailleEcran : Dimension = Toolkit.getDefaultToolkit().getScreenSize()
+		var	height = tailleEcran.height
+		var width = tailleEcran.width
+		// taille est un demi la longueur et l'hauteur
+		jFrame.setSize(width / 2, height / 2)
+		// ici on centre notre fenetre
+		jFrame.setLocationRelativeTo(null)
+		jFrame.getContentPane().add(jPanel)
+		jFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE)
+		jFrame.setVisible(true)
+	}
+
+	def buildContentPane() : JPanel {
+		var panel : JPanel = new JPanel()
+		panel.setLayout(new FlowLayout())
+
+		bouton1 = new JButton("Scénario 1")
+		//bouton1.setPreferredSize(50, 50)
+		bouton1.addActionListener(this)
+		panel.add(bouton1)
+
+		bouton2 = new JButton("Scénario 2")
+		bouton2.addActionListener(this)
+		panel.add(bouton2)
+
+		bouton3 = new JButton("Scénario 3")
+		bouton3.addActionListener(this)
+		panel.add(bouton3)
+
+		return panel;
+	}
+
+	def actionPerformed(e : ActionEvent) : void {
+		var source : Object= e.getSource();
+
+		if (source == bouton1) {
+			System.out.println("Lancement scénario 1 ...")
+		} else if (source == bouton2) {
+			System.out.println("Lancement scénario 2 ...")
+		} else {
+			System.out.println("Lancement scénario 3 ...")
+		}
+	}
+}
+
+/* class Exemple {
+	static def main(args : String*) : void {
+
+		var numCharts = 3;
+		var charts = new ArrayList<XYChart>();
+
+		for (var i = 0; i < numCharts; i++) {
+			var chart : XYChart = new XYChartBuilder().xAxisTitle("Time").yAxisTitle("Infected").width(600).height(400).
+				build()
+			var series : XYSeries = chart.addSeries("" + i, null, getRandomWalk(200))
+			series.setMarker(SeriesMarkers.NONE)
+			charts.add(chart);
+		}
+
+		new SwingWrapper<XYChart>(charts).displayChartMatrix()
+	}
+
+	// Generate Random Data For Test
+	static def getRandomWalk(numPoints : int) : double[] {
+
+		var y : double[] = newDoubleArrayOfSize(numPoints)
+		y.set(0, 0)
+
+		for (var i = 1; i < y.length; i++) {
+			y.set(i, (y.get(i - 1) + Math.random() - 0.5))
+		}
+		return y;
+	}
+}*/
+ 
+/*class Exemple {
+	static def main(args : String*) : void {
+		var exampleChart : CategoryChart = new CategoryChart<CategoryChart>();
+		var chart   = exampleChart.getChart();
+		new SwingWrapper<CategoryChart>(chart).displayChart();
+	}
+
+	//@Override
+	def  getChart() {
+ 
+    // Create Chart
+    var chart : CategoryChart  = new CategoryChartBuilder().width(800).height(600).title("Stick").build();
+ 
+    // Customize Chart
+    chart.getStyler().setChartTitleVisible(true);
+    chart.getStyler().setLegendPosition(LegendPosition.InsideNW);
+    chart.getStyler().setDefaultSeriesRenderStyle(CategorySeriesRenderStyle.Stick);
+ 
+    // Series
+    var xData = new ArrayList<Integer>();
+    var yData = new ArrayList<Integer>();
+    for (var i = -3; i <= 24; i++) {
+      xData.add(i);
+      yData.add(i);
+}
+    chart.addSeries("data", xData, yData);
+ 
+    return chart;
+  }
+	
+ * }
+ */
+
+
+
+/*class Exemple {
+
+  static def main(args : String*) : void {	
+  	var xData : double[] = newDoubleArrayOfSize(3)
+  	var yData : double[] = newDoubleArrayOfSize(3) 
+
+  	xData.set(0,0.0)
+  	xData.set(1,1.0)
+  	xData.set(2,2.0)
+  
+ 	yData.set(0,2.0)
+  	yData.set(1,1.0)
+  	yData.set(2,0.0) 
+  
+  
+  	 // Create Chart
+ 	 var chart : XYChart  = QuickChart.getChart("Sample Chart", "X", "Y", "y(x)", xData, yData);
+  
+  	// Show it
+  	new SwingWrapper(chart).displayChart();
+  	
+  	}
+  	
+  def buildPanel() : XChartPanel<XYChart> throws IOException {
+  	
+  }
+ }*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

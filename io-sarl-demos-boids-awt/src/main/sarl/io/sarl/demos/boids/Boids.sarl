@@ -1,0 +1,336 @@
+/* 
+ * $Id$
+ * 
+ * SARL is an general-purpose agent programming language.
+ * More details on http://www.sarl.io
+ * 
+ * Copyright (C) 2014-2020 the original authors or authors.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.sarl.demos.boids
+
+import io.sarl.core.DefaultContextInteractions
+import io.sarl.core.Initialize
+import io.sarl.core.Lifecycle
+import io.sarl.core.Logging
+import io.sarl.core.Schedules
+import java.awt.Color
+import java.util.Collection
+import java.util.Date
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import org.arakhne.afc.math.geometry.d2.d.Vector2d
+
+/** 
+ * A boid agent evolving according C. Reynolds basic behavioral rules
+ * @author Nicolas Gaud
+ */
+@SuppressWarnings("potential_field_synchronization_problem")
+agent Boid {
+
+	uses Logging, DefaultContextInteractions, Schedules, Lifecycle
+
+	// ID of the environmental agent
+	var environment : UUID
+	var position : Vector2d
+	var speed : Vector2d
+	var group : Population
+	var xdest : int
+	var ydest : int
+	var step : int
+	var seatNumber : int
+	var seatGroup : int
+	var contactMap : ConcurrentHashMap<UUID, Contact>
+	var catering : boolean
+	var nbx : int
+	var nby : int
+	var dist : int
+	var booleanSeven : boolean
+
+	/** 
+	 * New attributes related to the concert context
+	 */
+	on Initialize {
+		// Boids init parameters
+		if (occurrence.parameters.size > 4) {
+			if (occurrence.parameters.get(0) instanceof UUID) {
+				environment = occurrence.parameters.get(0) as UUID
+			}
+
+			if (occurrence.parameters.get(1) instanceof Population) {
+				group = occurrence.parameters.get(1) as Population
+			}
+
+			if (occurrence.parameters.get(2) instanceof Vector2d) {
+				position = occurrence.parameters.get(2) as Vector2d
+			}
+			if (occurrence.parameters.get(3) instanceof Vector2d) {
+				speed = occurrence.parameters.get(3) as Vector2d
+				speed.length = 1
+				speed.scale(group.maxSpeed)
+			}
+			if (occurrence.parameters.get(4) instanceof String) {
+				loggingName = occurrence.parameters.get(4) as String
+			}
+			if (occurrence.parameters.get(5) instanceof Integer) {
+				seatNumber = occurrence.parameters.get(5) as Integer
+			}
+			if (occurrence.parameters.get(6) instanceof Integer) {
+				seatGroup = occurrence.parameters.get(6) as Integer
+			}
+			if (occurrence.parameters.get(7) instanceof Boolean) {
+				catering = occurrence.parameters.get(7) as Boolean
+			}
+
+			step = 0
+			xdest = 250
+			if (BoidsSimulationLauncher::scenario == 1) {
+				ydest = 60
+			} else if (BoidsSimulationLauncher::scenario == 2) {
+				if (seatGroup == 1 || seatGroup == 2)
+					ydest = -60
+				else
+					ydest = 60
+			} else if (BoidsSimulationLauncher::scenario == 3) {
+				if (seatGroup == 1)
+					ydest = -180
+				else if (seatGroup == 2)
+					ydest = -60
+				else if (seatGroup == 3)
+					ydest = 60
+				else
+					ydest = 180
+			}
+			
+			booleanSeven = false
+
+			nbx = BoidsSimulationLauncher::NB_X_SEAT
+			nby = BoidsSimulationLauncher::NB_Y_SEAT
+			dist = BoidsSimulationLauncher::DIST_BETWEEN_SEAT
+
+			this.contactMap = new ConcurrentHashMap
+		}
+		if (Settings::isLogActivated) {
+			"Boids activated".info
+		}
+
+	}
+
+	on Perception {
+		var boids = occurrence.perceivedAgentBody
+		var myBody = boids.get(ID)
+		if ((myBody !== null) && (myBody.owner == this.ID)) {
+			// Update boids' speed and position according to the new environmental data
+			this.position = myBody.position
+			this.speed = myBody.vitesse
+		}
+		in(Settings::pause) [
+			var ev = new Action(think(boids.values), xdest, ydest, this.step, contactMap, seatGroup, booleanSeven)
+			emit(ev)[it.UUID == this.environment]
+			if (Settings::isLogActivated) {
+				info("Sending Influences.")
+			}
+		]
+	}
+
+	on resetData {
+		synchronized (this.contactMap) {
+			this.contactMap.clear
+		}
+	}
+
+	on counterChoice {
+		changeStep(true)
+	}
+
+	on Die {
+		killMe
+	}
+
+	/************** Boids' behavioral Methods ****************************
+	 */
+
+	/** 
+	 * The core boids behavior : aggregating all forces into a influence 
+	 */
+	def think(perception : Collection<PerceivedBoidBody>) : Vector2d {
+		if (perception !== null) {
+			var force : Vector2d
+			var influence = new Vector2d
+
+			influence.set(xdest, ydest)
+
+			if (group.separationOn) {
+				force = perception.separation
+				force.scale(group.separationForce)
+				influence += force
+			}
+
+			if (!(this.step == 0 || this.step == 7))
+				changeStep(false)
+
+			perception.addContact
+			return influence
+		}
+	}
+
+	/** 
+	 * Determine whether a body is visible or not according to the perception range
+	 */
+	def isVisible(otherBoid : PerceivedBoidBody, distance : double) : boolean {
+		var tmp = otherBoid.position - position
+
+		if (tmp.length > distance)
+			return false
+
+		var tmp2 = speed.clone
+		tmp2.normalize
+
+		if (tmp2 * tmp < group.visibleAngleCos)
+			return false
+
+		return true
+	}
+
+	def isVisible360(otherBoid : PerceivedBoidBody, distance : double) : boolean {
+		var tmp = otherBoid.position - position
+
+		if (tmp.length > distance)
+			return false
+
+		return true
+	}
+
+	/** Compute the separation force.
+	 */
+	def separation(otherBoids : Collection<PerceivedBoidBody>) : Vector2d {
+		var force = new Vector2d
+		var len = 0.0
+
+		for (otherBoid : otherBoids) {
+			if ((otherBoid !== null) && (otherBoid.owner !== this.ID) && (isVisible(otherBoid, group.distSeparation))) {
+				var tmp = position - otherBoid.position
+				len = tmp.length
+				tmp.scale(len * len)
+				force += tmp
+			}
+		}
+		return force
+	}
+
+	def infect(otherBoids : Collection<PerceivedBoidBody>) {
+		for (otherBoid : otherBoids) {
+			if ((otherBoid !== null) && (otherBoid.owner !== this.ID) && (otherBoid.group.color == Color::GREEN) &&
+				(this.group.color == Color::RED) && isVisible(otherBoid, 8)) {
+				otherBoid.group = this.group
+				var ev = new ChangeBoidGroup(this.group)
+				emit(ev)[it.UUID == otherBoid.owner]
+			}
+		}
+	}
+	
+	def addContact(otherBoids : Collection<PerceivedBoidBody>) {
+		synchronized (contactMap) {
+			for (otherBoid : otherBoids) {
+
+				var contacttmp = contactMap.get(otherBoid.owner)
+
+				if ((otherBoid !== null) && (otherBoid.owner !== this.ID)) {
+
+					if (isVisible360(otherBoid, group.distContact)) {
+						if (contacttmp === null) {
+							contactMap.put(otherBoid.owner, new Contact(0, new Date().getTime()))
+						} else {
+							if (contacttmp.getLastStart() == 0) {
+								contacttmp.setLastStart(new Date().getTime())
+							} else {
+								contacttmp.setTime(contacttmp.getTime() + new Date().getTime() -
+									contacttmp.getLastStart())
+								contacttmp.setLastStart(new Date().getTime())
+							}
+						}
+					} else {
+						if (contacttmp === null) {
+							contactMap.put(otherBoid.owner, new Contact(0, 0))
+						} else {
+							if (contacttmp.getLastStart() !== 0) {
+
+								contacttmp.setTime(contacttmp.getTime() + new Date().getTime() -
+									contacttmp.getLastStart())
+								contacttmp.setLastStart(0)
+							}
+						}
+					}
+				}
+			}
+
+		}
+	}
+
+	def changeStep(bl : boolean) {
+
+		if ((position.x == xdest && position.y == ydest) || bl) {
+
+			if (this.step == 4 && BoidsSimulationLauncher::currentTime >= BoidsSimulationLauncher::PHASE_2) {
+				if (!catering)
+					this.step = 12
+				else
+					this.step = 5
+			} else if ((step >= 0 && step <= 3) || (step == 5) || (step == 6) || (step == 7) ||
+				(step >= 8 && step <= 11) ||
+				(step == 12 && BoidsSimulationLauncher::currentTime >= BoidsSimulationLauncher::PHASE_4) || step >= 13)
+				this.step = this.step + 1
+
+			if (this.step == 1) {
+				this.xdest = 0
+				this.ydest = seatNumber / nbx * dist - (( dist * (nby - 1)) / 2) - dist / 2
+			} else if (this.step == 2) {
+				this.xdest = - 250 + seatNumber % nbx * dist - dist / 2
+			} else if (this.step == 3 || this.step == 5 || this.step == 11 || this.step == 13) {
+				this.xdest = - 250 + seatNumber % nbx * dist - dist / 2
+				this.ydest += dist / 2
+			} else if (this.step == 4 || this.step == 12) {
+				this.xdest = - 250 + seatNumber % nbx * dist
+			} else if (this.step == 6) {
+				this.ydest = 120 / nbx * dist - (( dist * (nby - 1)) / 2) + dist
+				if (BoidsSimulationLauncher::scenario == 1)
+					this.ydest = 120 / nbx * dist - (( dist * (nby - 1)) / 2) + dist
+				else
+					this.ydest = 120 / (nbx / 2) * dist - (( dist * (nby - 1)) / 2) + dist
+				if (this.position.y >= this.ydest && !booleanSeven)
+					booleanSeven = true
+			} else if (this.step == 7) {
+				this.xdest = 0
+				this.ydest = 240
+			} else if (this.step == 8) {
+				this.xdest += dist
+				this.ydest -= dist
+			} else if (this.step == 9) {
+				this.ydest = seatNumber / nbx * dist - (( dist * (nby - 1)) / 2) - dist / 2
+			} else if (this.step == 10) {
+				this.xdest = - 250 + seatNumber % nbx * dist - dist / 2
+			} else if (this.step == 11) {
+				this.ydest = seatNumber / nbx * dist - (( dist * (nby - 1)) / 2)
+			} else if (this.step == 13) {
+				this.xdest = - 250 + seatNumber % nbx * dist - dist / 2
+			} else if (this.step == 14) {
+				this.ydest = - (( dist * (nby - 1)) / 2) - dist / 2
+			} else if (this.step == 15) {
+				this.xdest = - 300
+				this.ydest = - 300
+			}
+		}
+	}
+}

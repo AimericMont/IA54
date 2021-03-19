@@ -1,0 +1,45 @@
+/** 
+ * 
+ */
+package io.sarl.demos.boids
+
+/** 
+ * @author benjamin
+ * 
+ */
+class Data {
+
+	var contact1 : int
+	var contact2 : int
+	var contact3 : int
+
+	new(v1 : int, v2 : int, v3 : int) {
+		this.contact1 = v1
+		this.contact2 = v2
+		this.contact3 = v3
+	}
+
+	def getContact1() : int {
+		return this.contact1
+	}
+
+	def getContact2() : int {
+		return this.contact2
+	}
+
+	def getContact3() : int {
+		return this.contact3
+	}
+
+	def setContact1(v : int) {
+		this.contact1 = v
+	}
+
+	def setContact2(v : int) {
+		this.contact2 = v
+	}
+
+	def setContact3(v : int) {
+		this.contact3 = v
+	}
+}

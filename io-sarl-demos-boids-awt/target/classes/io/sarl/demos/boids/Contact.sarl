@@ -1,0 +1,35 @@
+/** 
+ * 
+ */
+package io.sarl.demos.boids
+
+/** 
+ * @author benjamin
+ * 
+ */
+class Contact {
+
+	var time : long
+	var lastStart : long
+
+	new(t : long, lt : long) {
+		this.time = t
+		this.lastStart = lt
+	}
+
+	def setTime(t : long) {
+		this.time = t
+	}
+
+	def setLastStart(t : long) {
+		this.lastStart = t
+	}
+
+	def getTime() {
+		return this.time
+	}
+
+	def getLastStart() {
+		return this.lastStart
+	}
+}

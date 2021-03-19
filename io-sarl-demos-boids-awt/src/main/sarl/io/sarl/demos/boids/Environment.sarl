@@ -1,0 +1,299 @@
+/* 
+ * $Id$
+ * 
+ * SARL is an general-purpose agent programming language.
+ * More details on http://www.sarl.io
+ * 
+ * Copyright (C) 2014-2020 the original authors or authors.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.sarl.demos.boids
+
+import io.sarl.core.DefaultContextInteractions
+import io.sarl.core.Initialize
+import io.sarl.core.Lifecycle
+import io.sarl.core.Logging
+import io.sarl.core.ParticipantLeft
+import io.sarl.core.Schedules
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentSkipListSet
+import org.arakhne.afc.math.geometry.d2.d.Vector2d
+import org.eclipse.xtend.lib.annotations.Accessors
+import java.util.concurrent.atomic.AtomicBoolean
+
+/** 
+ * The environmental agent in charge of collecting boids influences and computing the new state of the virtual world
+ * @author Nicolas Gaud
+ */
+agent Environment {
+
+	uses Logging, DefaultContextInteractions, Schedules, Lifecycle
+
+	@Accessors
+	var width : int
+
+	@Accessors
+	var height : int
+
+	@Accessors
+	var boids : ConcurrentHashMap<UUID, PerceivedBoidBody>
+
+	// Set of boids ID who has sent their influence in the current time step
+	@Accessors
+	var influences : ConcurrentSkipListSet<UUID>
+
+	@Accessors
+	var mapOfMap : ConcurrentHashMap<UUID, ConcurrentHashMap<UUID, Contact>>
+
+	on Initialize {
+		loggingName = "Environment"
+		// Environment init parameters : An Integer the grid's height, An integer the grid's width
+		if (occurrence.parameters.size > 1) {
+			if (occurrence.parameters.get(0) instanceof Integer) {
+				height = occurrence.parameters.get(0) as Integer
+			}
+
+			if (occurrence.parameters.get(1) instanceof Integer) {
+				width = occurrence.parameters.get(1) as Integer
+			}
+			boids = null
+			influences = new ConcurrentSkipListSet
+			mapOfMap = new ConcurrentHashMap
+			var tempo : int = 400
+			if(BoidsSimulationLauncher::scenario == 1)
+				tempo = 300
+			else if (BoidsSimulationLauncher::scenario == 3)
+				tempo = 700
+			every(tempo) [
+				BoidsSimulationLauncher::lock.set(true)
+				BoidsSimulationLauncher::lock2.set(true)
+				BoidsSimulationLauncher::lock3.set(true)
+				BoidsSimulationLauncher::lock4.set(true)
+			]
+			every(300) [
+				BoidsSimulationLauncher::lock5.set(true)
+			]
+			every(75)[BoidsSimulationLauncher::exitLock.set(true)]
+		}
+	}
+
+	on Start {
+		this.boids = occurrence.perceivedAgentBody
+		new GuiRepaint(boids).emit
+		new Perception(boids).emit
+	}
+
+	on Action {
+		synchronized (boids) {
+			synchronized (influences) {
+				synchronized (mapOfMap) {
+					var id = occurrence.source.UUID
+
+					if (boids.containsKey(id)) {
+						this.influences.add(id)
+						applyForce(occurrence.influence, boids.get(id), occurrence.destx, occurrence.desty,
+							occurrence.stp, occurrence.group, occurrence.booleanSeven)
+					}
+					if (mapOfMap.containsKey(id)) {
+						mapOfMap.replace(id, occurrence.map)
+					} else {
+						mapOfMap.put(id, occurrence.map)
+					}	
+					
+					if (this.influences.size == this.boids.size) {
+												
+						in(Settings::pause) [
+							if (BoidsSimulationLauncher::scenario == 3) {
+								enter(boids, 0, 1, BoidsSimulationLauncher::lock)
+								enter(boids, 0, 2, BoidsSimulationLauncher::lock2)
+								enter(boids, 0, 3, BoidsSimulationLauncher::lock3)
+								enter(boids, 0, 4, BoidsSimulationLauncher::lock4)
+							} else if (BoidsSimulationLauncher::scenario == 2) {
+								enter(boids, 0, 2, BoidsSimulationLauncher::lock)
+								enter(boids, 0, 3, BoidsSimulationLauncher::lock2)
+							} else {
+								enter(boids, 0, 3, BoidsSimulationLauncher::lock)
+							}
+							enter(boids, 7, 0, BoidsSimulationLauncher::lock5)
+							exit(boids, 15)
+							new GuiRepaint(boids).emit[it.UUID == BoidsSimulation.id]
+							new Perception(boids).emit
+							new updateContactChart(mapOfMap).emit
+							if (Settings::isLogActivated) {
+								info('New Simulation step.')
+							}
+						]
+						this.influences.clear
+					}
+				}
+			}
+		}
+	}
+
+	on resetData {
+		synchronized (mapOfMap) {
+			this.mapOfMap.clear
+		}
+	}
+
+	on Die {
+		killMe
+	}
+
+	on ParticipantLeft {
+		/*synchronized (this.boids) {
+			synchronized (this.influences) {
+				synchronized (this.mapOfMap) {
+					//this.influences.remove(occurrence.source.UUID)
+					//this.boids.remove(occurrence.source.UUID)
+					//this.mapOfMap.remove(occurrence.source.UUID)
+					// error("        boids removed - " + boids.size())
+					if (this.boids.isEmpty()) {
+						var ev : killChart = new killChart()
+						emit(ev)
+						killMe
+					}
+				}
+			 * }
+			 */
+		if (this.boids.isEmpty()) {
+			var ev : killChart = new killChart()
+			error("EMIT")
+			emit(ev)
+			killMe
+		}
+	}
+
+
+	def applyForce(force : Vector2d, b : PerceivedBoidBody, xdest : int, ydest : int, stp : int, sg : int, booleanSeven : boolean) {
+
+		var acceleration = b.acceleration
+		var vitesse = b.vitesse
+		var position = b.position
+
+		force.x = force.x - b.position.x
+		force.y = force.y - b.position.y
+
+		// limiting/clamping the applied force
+		if (force.length > b.group.maxForce) {
+			force.length = b.group.maxForce
+		}
+
+		acceleration.set(force)
+
+		vitesse += acceleration
+
+		// updating speed
+		if (vitesse.length > b.group.maxSpeed) {
+			vitesse.length = b.group.maxSpeed
+		}
+
+		position += force
+
+		if (stp == 0) {
+			if (position.x < xdest) {
+				position.x = xdest
+			}
+			if (position.y > ydest + 4) {
+				position.y = ydest + 4
+			}
+			if (position.y < ydest - 4) {
+				position.y = ydest - 4
+			}
+		} else if (stp == 7) {
+			if (position.x > xdest) {
+				position.x = xdest
+			}
+			if (position.y > ydest + 20) {
+				position.y = ydest + 20
+			}
+			if (position.y < ydest - 20 && booleanSeven) {
+				position.y = ydest - 20
+			}
+		} else if (stp == 15) {
+			if (position.x < xdest - 10) {
+				position.x = xdest
+			}
+			if (position.y < ydest) {
+				position.y = ydest
+			}
+		}
+
+		var bb = boids.get(b.owner)
+		bb.step = stp
+		bb.acceleration = acceleration
+		bb.vitesse = vitesse
+		bb.position = position
+		bb.xdest = xdest
+		bb.ydest = ydest
+		bb.seatGroup = sg
+
+	}
+
+	def enter(otherBoids : ConcurrentHashMap<UUID, PerceivedBoidBody>, step : int, guichet : int,
+		lock : AtomicBoolean) {
+		var tmpUUID : UUID
+		var smallestDist : double = 100.0
+		for (otherBoid : otherBoids.values) {
+			if (otherBoid.step == step && otherBoid.guichet == guichet) {
+				var tmp = Math.sqrt(Math.pow(otherBoid.position.x - otherBoid.xdest, 2) +
+					Math.pow(otherBoid.position.y - otherBoid.ydest, 2))
+				if (otherBoid !== null && tmp < smallestDist) {
+					smallestDist = tmp
+					tmpUUID = otherBoid.owner
+				}
+			} else if (otherBoid.step == step && guichet == 0) {
+				var tmp = Math.sqrt(Math.pow(otherBoid.position.x - otherBoid.xdest, 2) +
+					Math.pow(otherBoid.position.y - otherBoid.ydest, 2))
+				if (otherBoid !== null && tmp < smallestDist) {
+					smallestDist = tmp
+					tmpUUID = otherBoid.owner
+				}
+			}
+		}
+		if (smallestDist < 4.0) {
+			val id : UUID = tmpUUID
+			if (lock.get) {
+				lock.set(false)
+				var ev : counterChoice = new counterChoice()
+				emit(ev)[it.UUID == id]
+			}
+		}
+	}
+
+	def exit(otherBoids : ConcurrentHashMap<UUID, PerceivedBoidBody>, step : int) {
+		var tmpUUID : UUID
+		var smallestDist : double = 100.0
+		for (otherBoid : otherBoids.values()) {
+			if (otherBoid !== null && otherBoid.step >= step) {
+				var tmp = Math.sqrt(Math.pow(otherBoid.position.x + 300, 2) + Math.pow(otherBoid.position.y + 300, 2))
+				if (tmp < smallestDist) {
+					smallestDist = tmp
+					tmpUUID = otherBoid.owner
+				}
+			}
+		}
+		if (smallestDist < 4.0 && BoidsSimulationLauncher::exitLock.get) {
+			BoidsSimulationLauncher::exitLock.set(false)
+			val id : UUID = tmpUUID
+
+			this.influences.remove(id)
+			this.boids.remove(id)
+			
+			var ev : Die = new Die()
+			emit(ev)[it.UUID == id]
+		}
+	}
+}

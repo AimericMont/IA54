@@ -1,0 +1,166 @@
+/** 
+ * 
+ */
+package io.sarl.demos.boids
+
+
+import io.sarl.core.Initialize
+import io.sarl.core.Logging
+import java.util.ArrayList
+import io.sarl.core.DefaultContextInteractions
+import io.sarl.core.Lifecycle
+import java.util.concurrent.atomic.AtomicBoolean
+import io.sarl.core.Schedules
+
+/** 
+ * @author benjamin
+ * 
+ */
+agent Chart {
+	uses Logging, DefaultContextInteractions, Lifecycle, Schedules
+
+	var chart1 : Charts = new Charts("1--Contact > 0.167s")
+	var chart2 : Charts = new Charts("1--Contact > 10s")
+	var chart3 : Charts = new Charts("1--Contact > 15s")
+
+	var listGraph : ArrayList<Charts> = new ArrayList
+
+	var graph1 : boolean = true
+	var graph2 : boolean = true
+	var graph3 : boolean = true
+	var graph4 : boolean = true
+
+	var lockGraph : AtomicBoolean = new AtomicBoolean()
+
+	on Initialize {
+		// Event trigger before the agent begin to live or to be used.
+		// You should put all the initialization statements in this block of code.
+		loggingName = "Chart Agent"
+		info("The agent was started.")
+		lockGraph.set(false)
+	}
+
+	on updateContactChart {
+
+		var value1 : float = 0
+		var value2 : float = 0
+		var value3 : float = 0
+
+		for (element : occurrence.map.values()) {
+			for (element2 : element.values()) {
+				if (element2.getTime() >= BoidsSimulationLauncher::TIME_CONTACT_3) {
+					value1++
+					value2++
+					value3++
+				} else {
+					if (element2.getTime() >= BoidsSimulationLauncher::TIME_CONTACT_2) {
+						value1++
+						value2++
+					} else {
+						if (element2.getTime() >= BoidsSimulationLauncher::TIME_CONTACT_1) {
+							value1++
+						}
+					}
+				}
+			}
+		}
+
+		if (BoidsSimulationLauncher::currentTime >= BoidsSimulationLauncher::PHASE_4 && graph4) {
+			graph4 = false
+			listGraph.add(chart1)
+			listGraph.add(chart2) 
+			listGraph.add(chart3)
+
+			chart1 = new Charts("5--Contact > 0.167s", Double.valueOf(BoidsSimulationLauncher::currentTime) / 1000, 0.0)
+			chart2 = new Charts("5--Contact > 10s", Double.valueOf(BoidsSimulationLauncher::currentTime) / 1000, 0.0)
+			chart3 = new Charts("5--Contact > 15s", Double.valueOf(BoidsSimulationLauncher::currentTime) / 1000, 0.0)
+
+			new resetData().emit
+			lockGraph.set(true)
+			in(500)[lockGraph.set(false)]			 
+		} else {
+			if (BoidsSimulationLauncher::currentTime >= BoidsSimulationLauncher::PHASE_3 && graph3) {
+				graph3 = false
+				listGraph.add(chart1)
+				listGraph.add(chart2)
+				listGraph.add(chart3)
+
+				chart1 = new Charts("4--Contact > 0.167s", Double.valueOf(BoidsSimulationLauncher::currentTime) / 1000,
+					0.0)
+				chart2 = new Charts("4--Contact > 10s", Double.valueOf(BoidsSimulationLauncher::currentTime) / 1000,0.0)
+				chart3 = new Charts("4--Contact > 15s", Double.valueOf(BoidsSimulationLauncher::currentTime) / 1000,0.0)
+
+				new resetData().emit
+				lockGraph.set(true)
+				in(500)[lockGraph.set(false)]
+			} else {
+				if (BoidsSimulationLauncher::currentTime >= BoidsSimulationLauncher::PHASE_2 && graph2) {
+					graph2 = false
+					listGraph.add(chart1)
+					listGraph.add(chart2)
+					listGraph.add(chart3)
+
+					chart1 = new Charts("3--Contact > 0.167s",
+						Double.valueOf(BoidsSimulationLauncher::currentTime) / 1000, 0.0)
+					chart2 = new Charts("3--Contact > 10s",	Double.valueOf(BoidsSimulationLauncher::currentTime) / 1000, 0.0)
+					chart3 = new Charts("3--Contact > 15s", Double.valueOf(BoidsSimulationLauncher::currentTime) / 1000,0.0)
+
+					new resetData().emit
+					lockGraph.set(true)
+					in(500)[lockGraph.set(false)]
+				} else {
+					if (BoidsSimulationLauncher::currentTime >= BoidsSimulationLauncher::PHASE_1 && graph1) {
+						graph1 = false
+						listGraph.add(chart1)
+						listGraph.add(chart2)
+						listGraph.add(chart3)
+
+						chart1 = new Charts("2--Contact > 0.167s",
+							Double.valueOf(BoidsSimulationLauncher::currentTime) / 1000, 0.0)
+						chart2 = new Charts("2--Contact > 10s",Double.valueOf(BoidsSimulationLauncher::currentTime)/1000,0.0)
+						chart3 = new Charts("2--Contact > 15s",Double.valueOf(BoidsSimulationLauncher::currentTime)/1000,0.0)
+
+						new resetData().emit
+						lockGraph.set(true)
+						in(500)[lockGraph.set(false)]
+					} else {
+						if (!lockGraph.get) {
+							chart1.updateValues(Float.valueOf(BoidsSimulationLauncher::currentTime / 1000), value1 / 120)
+							chart2.updateValues(Float.valueOf(BoidsSimulationLauncher::currentTime / 1000), value2 / 120)
+							chart3.updateValues(Float.valueOf(BoidsSimulationLauncher::currentTime / 1000),	value3 / 120)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	on updateChart {
+
+		/* if(occurrence.action.equals("add")){
+		 * l.add(occurrence.ID)
+		 * var tmpTime : Double = Double.valueOf(chart.getTime().size()*0.1)
+		 * var tmpInfected : Double = Double.valueOf(l.size())
+		 * chart.updateValues(tmpTime , tmpInfected)
+		 * //chart.updateValues()
+		 * }
+		 * if (occurrence.action.equals("remove")) {
+		 * l.remove(occurrence.ID)
+		 * var tmpTime : Double = Double.valueOf(chart.getTime().size()*0.1)
+		 * var tmpInfected : Double = Double.valueOf(l.size())
+		 * chart.updateValues(tmpTime , tmpInfected)
+		 * }
+		 */
+	}
+	
+	on killChart {
+
+		listGraph.add(chart1)
+		listGraph.add(chart2)
+		listGraph.add(chart3)
+
+		Charts.drawStaticChart(listGraph)
+		error("CHART DEAD")
+		killMe
+	}
+}
